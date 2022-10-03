@@ -7,19 +7,117 @@ output:
 
 
 ## Loading and preprocessing the data
-
-
+```{r, echo=TRUE}
+if (!file.exists("data.zip")){
+  url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+  download.file(url, destfile = "data.zip", method = "curl")
+  unzip("data.zip")
+}
+activity <- read.csv("activity.csv")
+```
+Now we want to get some sense of the Data and its dimensions
+```{r, echo=TRUE}
+str(activity)
+```
+*It's clear that the data doesn't need further processing for now*
 
 ## What is mean total number of steps taken per day?
+First off we need to make a histogram of the sum of steps for each day
+```{r}
+hist1 <- with(activity, tapply(activity$steps, date, sum, na.rm = TRUE))
+hist(hist1, breaks = 61, main = "Histogram of steps", xlab = "Step Count")
+```
 
+Now we have to calculate two things:
 
+1. Steps mean/day
 
+2. Steps median/day
+
+```{r}
+activitymean <- mean(hist1)
+activitymean
+activitymedian <- median(hist1)
+activitymedian
+```
 ## What is the average daily activity pattern?
+Now we should get the average steps for each interval of time across days 
+```{r}
+intervalmean <- as.data.frame(with(activity, tapply(activity$steps, interval, 
+                                                     mean, na.rm = TRUE)))
+intervalsteps <- data.frame(interval = unique(activity$interval), steps = intervalmean[,1])
+plot(intervalsteps, type = "l")
+```
 
-
-
+**The maximum steps for a 5 minute interval is as follows:**
+```{r}
+max(intervalsteps$steps)
+```
 ## Imputing missing values
+Now we should do some work on the missing values in this data set.
+We're going to do this through several steps:
 
+1. Identify the number of missing values denoted by NA
 
+2. Replace those missing values with the average of this interval
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in
+
+```{r}
+number <- sum(is.na(activity[,1]))
+number
+##now replacing the na values##
+NAs <- which(is.na(activity[,1]))
+for (i in 1:nrow(activity)) {
+    if (i %in% NAs){
+      activity[i,1] <- intervalsteps$steps[intervalsteps$interval==activity[i,3]]
+  }
+} 
+```
+**Now we draw the histogram with the new data**
+```{r}
+hist2 <- with(activity, tapply(activity$steps, date, sum))
+hist(hist2, breaks = 61, main = "Histogram of steps", xlab = "Step Count")
+```
+
+**After that we calculate the mean and median**
+```{r}
+activitymean <- mean(hist2)
+activitymean
+activitymedian <- median(hist2)
+activitymedian
+```
+We can notice that the mean and median have the same values and they're different
+than the values calculated earlier
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Firstly, we have to convert the 2nd column of activity from class character to date to be able to work with this column properly and use weekdays function
+```{r}
+activity[,2] <- as.Date(strptime(activity$date, format = "%Y-%m-%d"))
+activity$day <- weekdays(activity$date) ###here we are creating a new column###
+for (i in 1:nrow(activity)){
+  if (activity[i,4] %in% c("Saturday","Sunday")){
+    activity[i,]$day <- "weekend"
+  }
+  else {
+    activity[i,]$day <- "weekday"
+  }
+}
+str(activity)
+##Now we will change the "day" variable from character to factor variable##
+activity$day <- as.factor(activity$day)
+str(activity)
+```
+
+*Now we move to the next step which is ploting the average of intervals for weekdays and weekends*
+
+```{r}
+library(ggplot2)
+stepsbyday <- with(activity, aggregate(activity$steps, list(interval, day),mean))
+colnames(stepsbyday) <- c("interval", "day", "avgsteps")
+head(stepsbyday)
+g <- ggplot(stepsbyday, aes(interval,avgsteps))
+g+geom_line()+facet_grid(day~.)
+```
+
+**THE END**
